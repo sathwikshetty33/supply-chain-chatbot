@@ -3,17 +3,60 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
+import altair as alt
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
 
 # Set page configuration
 st.set_page_config(
     page_title="Fresh Produce Analysis",
     page_icon="🍏",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# App title with styling
-st.title("🥦 Fresh Produce Spoilage Analysis")
-st.markdown("### Analyze cold chain and logistics data for fresh produce")
+# Custom CSS for better styling
+st.markdown("""
+<style>    
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 0.5rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        font-weight: 500;
+        color: white;
+        margin-bottom: 1.5rem;
+    }
+    .metric-card {
+        background-color: #f0f8ff;
+        border-radius: 5px;
+        padding: 1rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .insight-box {
+        background-color: #f5f5f5;
+        border-left: 4px solid #4CAF50;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    .chart-container {
+        background-color: gray;
+        border-radius: 5px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# App title with custom styling
+st.markdown("<h1 class='main-header'>Fresh Produce Spoilage Analysis</h1>", unsafe_allow_html=True)
+st.markdown("<p class='sub-header'>Analyze cold chain and logistics data for fresh produce</p>", unsafe_allow_html=True)
 
 # Sidebar for model selection and data exploration
 with st.sidebar:
@@ -49,6 +92,13 @@ with st.sidebar:
     
     st.divider()
     
+    # Date range selector
+    st.header("Date Range")
+    start_date = st.date_input("Start Date", value=datetime(2025, 4, 1).date())
+    end_date = st.date_input("End Date", value=datetime(2025, 4, 10).date())
+    
+    st.divider()
+    
     # Example questions
     st.header("Example Questions")
     example_questions = [
@@ -65,7 +115,7 @@ with st.sidebar:
             st.session_state["question"] = question
 
 # Main content area divided into tabs
-tab1, tab2 = st.tabs(["🔍 Query Analysis", "📊 Data Visualization"])
+tab1, tab4, tab2, tab3 = st.tabs(["🔍 Query Analysis", " Cost analyzer", "📊 Data Visualization", "📈 Performance Metrics"])
 
 with tab1:
     # Input field for the question
@@ -116,9 +166,433 @@ with tab1:
                 st.markdown("---")
                 st.markdown("##### Not satisfied? Try a different model or refine your question.")
 
+
+
+with tab4:
+    # Input field for the question (tab4)
+    tab4_question = st.text_input(
+        "Ask a question about the fresh produce data:",
+        value=st.session_state.get("tab4_question", ""),
+        key="tab4_question_input"
+    )
+    
+    # Buttons to submit the question or get cost insights
+    tab4_col1, tab4_col2, tab4_col3 = st.columns([1, 1, 4])
+    with tab4_col1:
+        tab4_submit_button = st.button("Analyze", key="tab4_analyze_button", type="primary")
+    with tab4_col2:
+        tab4_cost_button = st.button("Cost Insights", key="tab4_cost_button", type="secondary")
+    with tab4_col3:
+        st.markdown("")  # Empty space for layout
+
+    if tab4_submit_button:
+        if not tab4_question.strip():
+            st.error("Please enter a question.")
+        else:
+            with st.spinner(f"Analyzing with {selected_model} model..."):
+                # Choose API endpoint
+                base_url = "http://localhost:8000"
+                if selected_model == "Deepseek":
+                    endpoint = f"{base_url}/deepseek"
+                elif selected_model == "Llama":
+                    endpoint = f"{base_url}/llama"
+                elif selected_model == "Gemma":
+                    endpoint = f"{base_url}/gemma"
+                else:
+                    endpoint = None
+
+                if endpoint:
+                    payload = {"question": tab4_question}
+                    try:
+                        response = requests.post(endpoint, json=payload, timeout=60)
+                        response.raise_for_status()
+                        answer = response.json().get("answer", "No answer received.")
+                    except requests.exceptions.RequestException as e:
+                        answer = f"Error: {e}"
+                else:
+                    answer = "Invalid model selected."
+
+                st.markdown("### Analysis Results")
+                with st.container(border=True):
+                    st.markdown(answer)
+
+                st.markdown("---")
+                st.markdown("##### Not satisfied? Try a different model or refine your question.")
+
+    elif tab4_cost_button:
+        with st.spinner("Generating cost insights..."):
+            # Sample data function
+            def generate_sample_iot_data_tab4():
+                dates = pd.date_range(start="2025-04-01", periods=168, freq="H")
+                power_base = 45 + np.sin(np.linspace(0, 14*np.pi, 168)) * 15
+                power_noise = np.random.normal(0, 3, 168)
+                power = power_base + power_noise
+                for i in range(168):
+                    hour = i % 24
+                    if 8 <= hour <= 18:
+                        power[i] += 20
+                water = 120 + np.sin(np.linspace(0, 14*np.pi, 168)) * 30 + np.random.normal(0, 10, 168)
+                fuel = 8 + np.sin(np.linspace(0, 7*np.pi, 168)) * 3 + np.random.normal(0, 1, 168)
+                temp = 22 + np.sin(np.linspace(0, 14*np.pi, 168)) * 5 + np.random.normal(0, 1, 168)
+                humidity = 55 + np.sin(np.linspace(0, 14*np.pi, 168)) * 15 + np.random.normal(0, 3, 168)
+
+                power_cost = power * 0.15
+                water_cost = water * 0.003
+                fuel_cost = fuel * 1.20
+
+                df1 = pd.DataFrame({
+                    "Timestamp": dates,
+                    "Power_Consumption_kWh": power,
+                    "Water_Consumption_L": water,
+                    "Fuel_Consumption_L": fuel,
+                    "Temperature_C": temp,
+                    "Humidity_Percent": humidity,
+                    "Power_Cost_USD": power_cost,
+                    "Water_Cost_USD": water_cost,
+                    "Fuel_Cost_USD": fuel_cost,
+                    "Total_Cost_USD": power_cost + water_cost + fuel_cost
+                })
+                df1["Date"] = df1["Timestamp"].dt.date
+                df1["Hour"] = df1["Timestamp"].dt.hour
+                return df1
+
+            # Create and filter data
+            iot_data_tab4 = generate_sample_iot_data_tab4()
+            latest_date = iot_data_tab4["Timestamp"].max().date()
+            three_days_ago = latest_date - pd.Timedelta(days=3)
+            filtered_data = iot_data_tab4[iot_data_tab4["Timestamp"].dt.date >= three_days_ago]
+
+            # Prepare data for API
+            api_data = {
+                "Power_Consumption_kWh": filtered_data["Power_Consumption_kWh"].tolist(),
+                "Water_Consumption_L": filtered_data["Water_Consumption_L"].tolist(),
+                "Fuel_Consumption_L": filtered_data["Fuel_Consumption_L"].tolist(),
+                "Temperature_C": filtered_data["Temperature_C"].tolist(),
+                "Humidity_Percent": filtered_data["Humidity_Percent"].tolist(),
+                "Power_Cost_USD": filtered_data["Power_Cost_USD"].tolist(),
+                "Water_Cost_USD": filtered_data["Water_Cost_USD"].tolist(),
+                "Fuel_Cost_USD": filtered_data["Fuel_Cost_USD"].tolist(),
+                "Total_Cost_USD": filtered_data["Total_Cost_USD"].tolist(),
+                "Timestamp": [ts.strftime("%Y-%m-%d %H:%M:%S") for ts in filtered_data["Timestamp"].tolist()]
+            }
+
+            # Set question
+            analysis_question = "Provide a quick cost analysis with optimization suggestions"
+
+            # Payload for FastAPI
+            payload = {
+                "data": api_data,
+                "question": analysis_question
+            }
+
+            try:
+                response = requests.post(f"http://localhost:8000/analyze_cost", json=payload, timeout=90)
+                response.raise_for_status()
+                cost_analysis_result = response.json().get("answer", "No analysis received.")
+
+                # Display results
+                st.markdown("### Cost Insights Analysis")
+                with st.container(border=True):
+                    st.markdown(cost_analysis_result)
+
+                # Show summary
+                total_power_cost = filtered_data["Power_Cost_USD"].sum()
+                total_water_cost = filtered_data["Water_Cost_USD"].sum()
+                total_fuel_cost = filtered_data["Fuel_Cost_USD"].sum()
+                total_cost = total_power_cost + total_water_cost + total_fuel_cost
+
+                st.markdown("### Cost Summary (Last 3 Days)")
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Cost", f"${total_cost:.2f}")
+                with col2:
+                    st.metric("Power Cost", f"${total_power_cost:.2f}", delta=f"{(total_power_cost/total_cost*100):.1f}%")
+                with col3:
+                    st.metric("Water Cost", f"${total_water_cost:.2f}", delta=f"{(total_water_cost/total_cost*100):.1f}%")
+                with col4:
+                    st.metric("Fuel Cost", f"${total_fuel_cost:.2f}", delta=f"{(total_fuel_cost/total_cost*100):.1f}%")
+
+                st.info("💡 For more detailed cost analysis and optimization recommendations, please visit the '💰 Cost Insights' tab.")
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error contacting cost analysis API: {str(e)}")
+                st.warning("Make sure your FastAPI server is running and accessible.")
+
 with tab2:
-    # Sample data for visualization
+    st.markdown("## 📊 Visualization Dashboard")
+    st.write("Explore insights through interactive visualizations of key metrics")
+    
+    # Sample sensor data for visualization
     # In a real app, you'd fetch this from your API or database
+    @st.cache_data
+    def load_sensor_data():
+        # This would typically come from your API or database
+        data = {
+            "Timestamp": pd.date_range(start="2025-04-01", periods=30, freq="H"),
+            "Temperature_C": np.random.normal(25, 5, 30),
+            "Humidity_%": np.random.normal(65, 10, 30),
+            "Power_Consumption_kWh": np.random.normal(6, 2, 30),
+            "Water_Consumption_L": np.random.normal(4, 1.5, 30),
+            "CO2_Emission_kg": np.random.normal(5, 2, 30),
+            "Operating_Cost_USD": np.random.normal(7, 2, 30),
+            "Fuel_Consumption_L": np.random.normal(1.2, 0.4, 30),
+            "Machine_Status": np.random.choice(["Running", "Idle", "Maintenance"], 30),
+            "Alert_Flag": np.random.choice([0, 1], 30, p=[0.8, 0.2])
+        }
+        return pd.DataFrame(data)
+    
+    sensor_df = load_sensor_data()
+    
+    # Function to get insights from Groq API for a specific attribute
+    def get_groq_insights(attribute_name, data):
+        base_url = "http://localhost:8000"
+        prompt = f"""
+        Analyze the following {attribute_name} data and provide 4-5 key insights about the trends, patterns, and potential implications:
+        {data.to_dict()}
+        
+        Format your response as bullet points focusing on:
+        - Notable trends or patterns
+        - Potential correlations with other metrics
+        - Operational implications
+        - Optimization opportunities
+        - Environmental or cost impacts
+        """
+        
+        try:
+            response = requests.post(f"{base_url}/llama", json={"question": prompt}, timeout=60)
+            if response.status_code == 200:
+                insights = response.json().get("answer", "")
+                # Clean up the insights to extract just the bullet points
+                insights = insights.split("\n")
+                insights = [i.strip() for i in insights if i.strip().startswith("-")]
+                return insights[:5]  # Limit to 5 insights
+            return ["Unable to generate insights. Please check the API connection."]
+        except:
+            return ["Unable to generate insights. Please check the API connection."]
+    
+    # Create metric summary cards
+    st.markdown("### 📌 Key Metrics Overview")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        avg_temp = round(sensor_df["Temperature_C"].mean(), 1)
+        st.metric(
+            label="Average Temperature",
+            value=f"{avg_temp}°C",
+            delta=f"{round(avg_temp - 23.5, 1)}°C"
+        )
+    
+    with col2:
+        avg_power = round(sensor_df["Power_Consumption_kWh"].mean(), 2)
+        st.metric(
+            label="Avg Power Consumption",
+            value=f"{avg_power} kWh",
+            delta=f"{round(((avg_power/5.5)-1)*100, 1)}%"
+        )
+    
+    with col3:
+        avg_water = round(sensor_df["Water_Consumption_L"].mean(), 2)
+        st.metric(
+            label="Avg Water Consumption",
+            value=f"{avg_water} L",
+            delta=f"{round(((avg_water/4)-1)*100, 1)}%"
+        )
+    
+    with col4:
+        avg_cost = round(sensor_df["Operating_Cost_USD"].mean(), 2)
+        st.metric(
+            label="Avg Operating Cost",
+            value=f"${avg_cost}",
+            delta=f"{round(((avg_cost/6.5)-1)*100, 1)}%"
+        )
+    
+    st.markdown("---")
+    
+    # Electric Consumption Visualization
+    st.markdown("### ⚡ Electrical Consumption Analysis")
+    
+    # Create time series plot for power consumption
+    fig_power = px.line(
+        sensor_df, 
+        x="Timestamp", 
+        y="Power_Consumption_kWh",
+        title="Power Consumption Over Time",
+        labels={"Power_Consumption_kWh": "Power (kWh)", "Timestamp": "Time"},
+        template="plotly_white"
+    )
+    fig_power.update_traces(line=dict(color="#1565C0", width=3))
+    fig_power.update_layout(
+        height=400,
+        margin=dict(l=40, r=40, t=40, b=40),
+        xaxis_title="Time",
+        yaxis_title="Power Consumption (kWh)",
+        hovermode="x unified"
+    )
+    
+    st.plotly_chart(fig_power, use_container_width=True)
+    
+    # Get insights from Groq API
+    power_insights = get_groq_insights("Power Consumption", sensor_df[["Timestamp", "Power_Consumption_kWh"]])
+    
+    with st.expander("About the Visualization"):
+        st.markdown("#### Power Consumption Insights")
+        for insight in power_insights:
+            st.markdown(f"• {insight}")
+    
+    st.markdown("---")
+    
+    # Water Consumption Visualization
+    st.markdown("### 💧 Water Consumption Analysis")
+    
+    # Create time series with daily aggregation
+    water_daily = sensor_df.copy()
+    water_daily["Date"] = water_daily["Timestamp"].dt.date
+    water_daily = water_daily.groupby("Date")["Water_Consumption_L"].sum().reset_index()
+    
+    fig_water = px.bar(
+        water_daily,
+        x="Date",
+        y="Water_Consumption_L",
+        title="Daily Water Consumption",
+        labels={"Water_Consumption_L": "Water (L)", "Date": "Date"},
+        template="plotly_white"
+    )
+    fig_water.update_traces(marker_color="#2E7D32")
+    fig_water.update_layout(
+        height=400,
+        margin=dict(l=40, r=40, t=40, b=40),
+        xaxis_title="Date",
+        yaxis_title="Water Consumption (L)",
+        hovermode="x unified"
+    )
+    
+    st.plotly_chart(fig_water, use_container_width=True)
+    
+    # Get insights from Groq API
+    water_insights = get_groq_insights("Water Consumption", water_daily)
+    
+    with st.expander("About the Visualization"):
+        st.markdown("#### Water Consumption Insights")
+        for insight in water_insights:
+            st.markdown(f"• {insight}")
+    
+    st.markdown("---")
+    
+    # CO2 Emissions Visualization
+    st.markdown("### 🌱 Carbon Emissions Analysis")
+    
+    # Create correlation heatmap between CO2 and other metrics
+    corr_columns = ["CO2_Emission_kg", "Power_Consumption_kWh", "Water_Consumption_L", "Fuel_Consumption_L"]
+    corr_df = sensor_df[corr_columns].corr()
+    
+    fig_co2_corr = px.imshow(
+        corr_df,
+        text_auto=True,
+        aspect="auto",
+        color_continuous_scale="Viridis",
+        title="Correlation Between CO2 Emissions and Other Metrics"
+    )
+    fig_co2_corr.update_layout(
+        height=400,
+        margin=dict(l=40, r=40, t=40, b=40)
+    )
+    
+    col1, col2 = st.columns([3, 2])
+    
+    with col1:
+        # Time series for CO2
+        fig_co2 = px.line(
+            sensor_df, 
+            x="Timestamp", 
+            y="CO2_Emission_kg",
+            title="CO2 Emissions Over Time",
+            labels={"CO2_Emission_kg": "CO2 (kg)", "Timestamp": "Time"},
+            template="plotly_white"
+        )
+        fig_co2.update_traces(line=dict(color="#7B1FA2", width=3))
+        fig_co2.update_layout(
+            height=400,
+            margin=dict(l=40, r=40, t=40, b=40),
+            xaxis_title="Time",
+            yaxis_title="CO2 Emissions (kg)",
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_co2, use_container_width=True)
+    
+    with col2:
+        st.plotly_chart(fig_co2_corr, use_container_width=True)
+    
+    # Get insights from Groq API
+    co2_insights = get_groq_insights("CO2 Emissions", sensor_df[["Timestamp", "CO2_Emission_kg", "Power_Consumption_kWh", "Fuel_Consumption_L"]])
+    
+    with st.expander("About the Visualization"):
+        st.markdown("#### Carbon Emissions Insights")
+        for insight in co2_insights:
+            st.markdown(f"• {insight}")
+    
+    st.markdown("---")
+    
+    # Operating Cost Visualization
+    st.markdown("### 💰 Operating Cost Analysis")
+    
+    # Create pie chart for cost allocation (fictional breakdown)
+    cost_breakdown = pd.DataFrame({
+        "Category": ["Energy", "Water", "Maintenance", "Labor", "Transport"],
+        "Cost": [35, 15, 20, 20, 10]
+    })
+    
+    col1, col2 = st.columns([2, 3])
+    
+    with col1:
+        fig_cost_pie = px.pie(
+            cost_breakdown,
+            values="Cost",
+            names="Category",
+            title="Cost Allocation Breakdown",
+            color_discrete_sequence=px.colors.qualitative.Set3
+        )
+        fig_cost_pie.update_layout(
+            height=400,
+            margin=dict(l=10, r=10, t=40, b=10)
+        )
+        st.plotly_chart(fig_cost_pie, use_container_width=True)
+    
+    with col2:
+        # Cost vs Temperature scatter plot
+        fig_cost_temp = px.scatter(
+            sensor_df,
+            x="Temperature_C",
+            y="Operating_Cost_USD",
+            color="Alert_Flag",
+            size="Power_Consumption_kWh",
+            title="Operating Cost vs Temperature",
+            labels={
+                "Operating_Cost_USD": "Cost (USD)",
+                "Temperature_C": "Temperature (°C)",
+                "Alert_Flag": "Alert Status"
+            },
+            color_discrete_map={0: "#4CAF50", 1: "#F44336"}
+        )
+        fig_cost_temp.update_layout(
+            height=400,
+            margin=dict(l=40, r=40, t=40, b=40),
+            xaxis_title="Temperature (°C)",
+            yaxis_title="Operating Cost (USD)"
+        )
+        st.plotly_chart(fig_cost_temp, use_container_width=True)
+    
+    # Get insights from Groq API
+    cost_insights = get_groq_insights("Operating Costs", sensor_df[["Operating_Cost_USD", "Power_Consumption_kWh", "Water_Consumption_L", "Fuel_Consumption_L", "Temperature_C"]])
+    
+    with st.expander("About the Visualization"):
+        st.markdown("#### Operating Cost Insights")
+        for insight in cost_insights:
+            st.markdown(f"• {insight}")
+
+with tab3:
+    st.markdown("## 📈 Performance Metrics")
+    st.write("Track key performance indicators and efficiency metrics over time")
+    
+    # Create sample data for product spoilage
     sample_data = {
         "Product": ["Mangoes", "Cauliflower", "Cherries", "Blueberries", "Papaya", "Green Peas", 
                     "Peaches", "Plums", "Okra", "Tomatoes", "Mushrooms", "Lettuce", "Zucchini",
@@ -139,6 +613,49 @@ with tab2:
     }
     df_viz = pd.DataFrame(sample_data)
     
+    # KPI metrics
+    st.markdown("### Key Performance Indicators")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        avg_spoilage = round(df_viz["Spoilage (%)"].mean(), 1)
+        st.metric(
+            label="Avg Spoilage Rate",
+            value=f"{avg_spoilage}%",
+            delta=f"{round(avg_spoilage - 25, 1)}%",
+            delta_color="inverse"
+        )
+    
+    with col2:
+        avg_transit = round(df_viz["Transit_Time"].mean(), 1)
+        st.metric(
+            label="Avg Transit Time",
+            value=f"{avg_transit} hrs",
+            delta=f"{round(avg_transit - 70, 1)} hrs",
+            delta_color="inverse"
+        )
+    
+    with col3:
+        refrigerated_pct = round(len(df_viz[df_viz["Storage"] == "Refrigerated"]) / len(df_viz) * 100, 1)
+        st.metric(
+            label="Refrigerated Storage",
+            value=f"{refrigerated_pct}%",
+            delta=f"{round(refrigerated_pct - 50, 1)}%"
+        )
+    
+    with col4:
+        fruit_spoilage = round(df_viz[df_viz["Category"] == "Fruit"]["Spoilage (%)"].mean(), 1)
+        veg_spoilage = round(df_viz[df_viz["Category"] == "Vegetable"]["Spoilage (%)"].mean(), 1)
+        st.metric(
+            label="Fruit vs Veg Spoilage",
+            value=f"{fruit_spoilage}% vs {veg_spoilage}%",
+            delta=f"{round(fruit_spoilage - veg_spoilage, 1)}%",
+            delta_color="inverse"
+        )
+    
+    st.markdown("---")
+    
     # Visualization options
     viz_options = [
         "Spoilage by Product",
@@ -151,91 +668,274 @@ with tab2:
     selected_viz = st.selectbox("Select Visualization", viz_options)
     
     # Create the selected visualization
-    st.markdown("### " + selected_viz)
-    
-    fig, ax = plt.figure(figsize=(10, 6)), plt.subplot()
+    st.markdown(f"### {selected_viz}")
     
     if selected_viz == "Spoilage by Product":
         sorted_df = df_viz.sort_values("Spoilage (%)", ascending=False)
-        sns.barplot(data=sorted_df, x="Product", y="Spoilage (%)", hue="Category", ax=ax)
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
+        
+        fig_spoilage_product = px.bar(
+            sorted_df,
+            x="Product",
+            y="Spoilage (%)",
+            color="Category",
+            title="Spoilage Rates by Product",
+            color_discrete_map={"Fruit": "#4CAF50", "Vegetable": "#2196F3"},
+            template="plotly_white"
+        )
+        fig_spoilage_product.update_layout(
+            height=500,
+            xaxis_tickangle=-45,
+            xaxis_title="Product",
+            yaxis_title="Spoilage Rate (%)",
+            legend_title="Category"
+        )
+        st.plotly_chart(fig_spoilage_product, use_container_width=True)
         
     elif selected_viz == "Spoilage by Category":
-        sns.boxplot(data=df_viz, x="Category", y="Spoilage (%)", ax=ax)
+        fig_spoilage_category = px.box(
+            df_viz,
+            x="Category",
+            y="Spoilage (%)",
+            color="Category",
+            points="all",
+            title="Spoilage Distribution by Category",
+            color_discrete_map={"Fruit": "#4CAF50", "Vegetable": "#2196F3"},
+            template="plotly_white"
+        )
+        fig_spoilage_category.update_layout(
+            height=500,
+            xaxis_title="Category",
+            yaxis_title="Spoilage Rate (%)"
+        )
+        st.plotly_chart(fig_spoilage_category, use_container_width=True)
         
     elif selected_viz == "Temperature vs Spoilage":
-        sns.scatterplot(data=df_viz, x="Avg_Temperature", y="Spoilage (%)", 
-                        hue="Category", size="Transit_Time", sizes=(20, 200), ax=ax)
-        plt.xlabel("Average Temperature (°C)")
-        plt.ylabel("Spoilage (%)")
+        fig_temp_spoilage = px.scatter(
+            df_viz,
+            x="Avg_Temperature",
+            y="Spoilage (%)",
+            color="Category",
+            size="Transit_Time",
+            hover_name="Product",
+            size_max=25,
+            title="Temperature vs Spoilage Relationship",
+            color_discrete_map={"Fruit": "#4CAF50", "Vegetable": "#2196F3"},
+            template="plotly_white"
+        )
+        
+        # Add trendline
+        fig_temp_spoilage.update_layout(
+            height=500,
+            xaxis_title="Average Temperature (°C)",
+            yaxis_title="Spoilage Rate (%)",
+            legend_title="Category"
+        )
+        
+        # Add a trendline
+        x = df_viz["Avg_Temperature"]
+        y = df_viz["Spoilage (%)"]
+        z = np.polyfit(x, y, 1)
+        p = np.poly1d(z)
+        
+        fig_temp_spoilage.add_trace(
+            go.Scatter(
+                x=[min(x), max(x)],
+                y=[p(min(x)), p(max(x))],
+                mode="lines",
+                line=dict(color="red", dash="dash"),
+                name="Trend"
+            )
+        )
+        
+        st.plotly_chart(fig_temp_spoilage, use_container_width=True)
         
     elif selected_viz == "Transit Time vs Spoilage":
-        sns.scatterplot(data=df_viz, x="Transit_Time", y="Spoilage (%)", 
-                        hue="Category", style="Storage", ax=ax)
-        plt.xlabel("Transit Time (Hours)")
-        plt.ylabel("Spoilage (%)")
+        fig_transit_spoilage = px.scatter(
+            df_viz,
+            x="Transit_Time",
+            y="Spoilage (%)",
+            color="Category",
+            symbol="Storage",
+            hover_name="Product",
+            title="Transit Time vs Spoilage Relationship",
+            color_discrete_map={"Fruit": "#4CAF50", "Vegetable": "#2196F3"},
+            template="plotly_white"
+        )
+        
+        fig_transit_spoilage.update_layout(
+            height=500,
+            xaxis_title="Transit Time (hours)",
+            yaxis_title="Spoilage Rate (%)",
+            legend_title="Category"
+        )
+        
+        # Add a trendline
+        x = df_viz["Transit_Time"]
+        y = df_viz["Spoilage (%)"]
+        z = np.polyfit(x, y, 1)
+        p = np.poly1d(z)
+        
+        fig_transit_spoilage.add_trace(
+            go.Scatter(
+                x=[min(x), max(x)],
+                y=[p(min(x)), p(max(x))],
+                mode="lines",
+                line=dict(color="red", dash="dash"),
+                name="Trend"
+            )
+        )
+        
+        st.plotly_chart(fig_transit_spoilage, use_container_width=True)
         
     elif selected_viz == "Storage Type Comparison":
-        sns.boxplot(data=df_viz, x="Storage", y="Spoilage (%)", hue="Category", ax=ax)
-    
-    st.pyplot(plt.gcf())
-    
-    # Additional data explanation
-    with st.expander("About the Visualizations"):
-        st.markdown("""
-        These visualizations help illustrate key relationships in the fresh produce dataset:
+        fig_storage = px.box(
+            df_viz,
+            x="Storage",
+            y="Spoilage (%)",
+            color="Category",
+            points="all",
+            title="Spoilage by Storage Type and Category",
+            color_discrete_map={"Fruit": "#4CAF50", "Vegetable": "#2196F3"},
+            template="plotly_white"
+        )
         
-        - **Spoilage by Product**: Shows which products have the highest spoilage rates
-        - **Spoilage by Category**: Compares spoilage rates between fruits and vegetables
-        - **Temperature vs Spoilage**: Illustrates how temperature affects spoilage rates
-        - **Transit Time vs Spoilage**: Shows the relationship between time in transit and spoilage
-        - **Storage Type Comparison**: Compares spoilage rates between refrigerated and ambient storage
+        fig_storage.update_layout(
+            height=500,
+            xaxis_title="Storage Type",
+            yaxis_title="Spoilage Rate (%)",
+            legend_title="Category"
+        )
         
-        The size of points in scatter plots represents additional variables like quantity or transit time.
-        """)
+        st.plotly_chart(fig_storage, use_container_width=True)
+    
+    # Explanation about the visualization
+    with st.expander("About the Visualization"):
+        if selected_viz == "Spoilage by Product":
+            st.markdown("""
+            #### Key Insights:
+            • Products like Green Peas, Plums, and Tomatoes show the highest spoilage rates (above 30%).
+            • Pineapples have remarkably low spoilage at just 5.2%, making them ideal for longer supply chains.
+            • Vegetables generally show higher spoilage rates than fruits in the dataset.
+            • Produce with spoilage rates above 25% should be prioritized for cold chain improvements.
+            • There are significant variations even within the same category (e.g., among fruits).
+            """)
+        
+        elif selected_viz == "Spoilage by Category":
+            st.markdown("""
+            #### Key Insights:
+            • Vegetables show higher median spoilage rates (27.5%) compared to fruits (21.5%).
+            • The vegetable category exhibits greater variability in spoilage rates.
+            • The interquartile range for vegetables is wider, indicating less predictable preservation outcomes.
+            • There are notable outliers in the fruit category, with some fruits having particularly low spoilage.
+            • This categorical difference suggests different handling protocols may be optimal for each category.
+            """)
+        
+        elif selected_viz == "Temperature vs Spoilage":
+            st.markdown("""
+            #### Key Insights:
+            • There is a positive correlation between higher temperatures and increased spoilage rates.
+            • The trend line indicates approximately 0.5% increase in spoilage for each 1°C increase.
+            • Products stored below 20°C generally show spoilage rates under 25%.
+            • Bubble size represents transit time - larger bubbles spent more time in transit.
+            • Some products defy the trend, suggesting other factors (humidity, handling) may be at play.
+            """)
+        
+        elif selected_viz == "Transit Time vs Spoilage":
+            st.markdown("""
+            #### Key Insights:
+            • Longer transit times correlate with higher spoilage rates, with a clear positive trend.
+            • Products with transit times under 50 hours generally maintain spoilage rates below 25%.
+            • The effect is more pronounced for vegetables than fruits.
+            • Storage type (symbol shape) shows refrigerated items resist spoilage better during long transits.
+            • For every 10 hours of additional transit time, spoilage increases by approximately 1.2% on average.
+            """)
+        
+        elif selected_viz == "Storage Type Comparison":
+            st.markdown("""
+            #### Key Insights:
+            • Refrigerated storage shows lower median spoilage rates for both fruits and vegetables.
+            • The advantage of refrigeration is more significant for vegetables than fruits.
+            • Ambient storage produces more outliers with extremely high spoilage rates.
+            • Even within refrigerated storage, vegetables show more variability than fruits.
+            • The difference between ambient and refrigerated is approximately 6.5% for vegetables and 4.2% for fruits.
+            """)
 
 # Display product data if requested from sidebar
 if st.session_state.get("show_product_data", False):
     st.markdown("---")
-    st.markdown(f"### Product Details: {st.session_state.get('selected_product', 'All Products')}")
-    
-    if st.session_state.get("selected_product") == "All Products":
-        # Show a summary table for all products
-        st.markdown("#### Summary by Product")
-        product_summary = pd.DataFrame({
-            "Product": sample_data["Product"],
-            "Category": sample_data["Category"],
-            "Avg Spoilage (%)": sample_data["Spoilage (%)"],
-            "Avg Temperature (°C)": sample_data["Avg_Temperature"],
-            "Avg Transit Time (hrs)": sample_data["Transit_Time"],
-            "Storage Type": sample_data["Storage"]
-        })
-        st.dataframe(product_summary, use_container_width=True, hide_index=True)
-    else:
-        # Show details for the selected product
-        selected = st.session_state.get("selected_product")
-        product_data = [i for i, p in enumerate(sample_data["Product"]) if p == selected]
+    selected_product = st.session_state["selected_product"]
+
+    if selected_product == "All Products":
+        # Show aggregated data for all products
+        st.markdown("#### Aggregated Metrics Across All Products")
         
-        if product_data:
-            idx = product_data[0]
-            st.markdown(f"**Category:** {sample_data['Category'][idx]}")
-            st.markdown(f"**Avg Spoilage:** {sample_data['Spoilage (%)'][idx]}%")
-            st.markdown(f"**Avg Temperature:** {sample_data['Avg_Temperature'][idx]}°C")
-            st.markdown(f"**Avg Transit Time:** {sample_data['Transit_Time'][idx]} hours")
-            st.markdown(f"**Typical Storage:** {sample_data['Storage'][idx]}")
+        summary_stats = df_viz.groupby("Category").agg({
+            "Spoilage (%)": ["mean", "median", "std"],
+            "Avg_Temperature": ["mean", "median"],
+            "Transit_Time": ["mean", "median"]
+        }).reset_index()
+        
+        summary_stats.columns = [' '.join(col).strip() for col in summary_stats.columns.values]
+        st.dataframe(summary_stats.style.background_gradient(cmap="YlGn"), use_container_width=True)
+        
+        st.markdown("#### Complete Product Dataset")
+        st.dataframe(df_viz, use_container_width=True)
+
+    else:
+        product_data = df_viz[df_viz["Product"] == selected_product]
+        
+        if not product_data.empty:
+            st.markdown(f"#### Detailed Metrics for {selected_product}")
             
-            # Show recommended handling
-            spoilage = sample_data['Spoilage (%)'][idx]
-            if spoilage > 30:
-                recommendation = "Critical attention needed. Use expedited shipping and controlled temperature."
-            elif spoilage > 20:
-                recommendation = "Use refrigerated transport and minimize transit time."
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric(
+                    label="Spoilage Rate",
+                    value=f"{product_data['Spoilage (%)'].values[0]}%",
+                    delta=f"{round(product_data['Spoilage (%)'].values[0] - avg_spoilage, 1)}%",
+                    delta_color="inverse"
+                )
+            with col2:
+                st.metric(
+                    label="Average Temperature",
+                    value=f"{product_data['Avg_Temperature'].values[0]}°C",
+                    delta=f"{round(product_data['Avg_Temperature'].values[0] - 25, 1)}°C"
+                )
+            with col3:
+                st.metric(
+                    label="Transit Time",
+                    value=f"{product_data['Transit_Time'].values[0]} hours",
+                    delta=f"{round(product_data['Transit_Time'].values[0] - avg_transit, 1)} hours",
+                    delta_color="inverse"
+                )
+            
+            st.markdown("#### Recommendations")
+            spoilage_rate = product_data["Spoilage (%)"].values[0]
+
+            if spoilage_rate > 30:
+                st.error("⚠️ **High Priority** - This product has critical spoilage rates above 30%")
+                st.markdown("""
+                - Immediate cold chain optimization required  
+                - Consider shorter transit routes or more frequent deliveries  
+                - Evaluate packaging solutions to extend shelf life  
+                - Prioritize for refrigerated transport  
+                """)
+            elif spoilage_rate > 25:
+                st.warning("⚠️ **Medium Priority** - This product has elevated spoilage rates")
+                st.markdown("""
+                - Review temperature controls during transit  
+                - Assess handling procedures for potential improvements  
+                - Consider inventory rotation policies  
+                """)
             else:
-                recommendation = "Standard shipping procedures with normal monitoring."
-                
-            st.markdown(f"**Recommendation:** {recommendation}")
-            
-# Footer
-st.markdown("---")
-st.caption("Fresh Produce Analysis Tool - Data updated April 2025")
+                st.success("✅ **Low Priority** - This product has acceptable spoilage rates")
+                st.markdown("""
+                - Maintain current handling procedures  
+                - Continue monitoring for any changes  
+                - Consider benchmarking against industry standards  
+                """)
+
+            st.markdown("#### Product Attributes")
+            st.dataframe(product_data.T, use_container_width=True)
+        else:
+            st.warning(f"No data available for {selected_product}")

@@ -14,6 +14,9 @@ import uvicorn
 import traceback
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+from typing import Optional, Dict, Any, List
+import re
+
 
 # Load environment variables
 load_dotenv(dotenv_path="./.env")
@@ -126,6 +129,11 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
 
+# Define cost analysis request schema
+class CostAnalysisRequest(BaseModel):
+    data: Dict[str, List[Any]]  # Will contain our sensor data
+    question: Optional[str] = "Analyze resource costs and provide optimization recommendations"
+
 # Error handling middleware
 @app.middleware("http")
 async def catch_exceptions_middleware(request: Request, call_next):
@@ -139,7 +147,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
             content={"detail": str(e)}
         )
 
-# Helper function to create the chain
+# Helper function to create the spoilage analysis chain
 def create_chain(model_name):
     try:
         llm = ChatGroq(
@@ -168,6 +176,7 @@ def create_chain(model_name):
         - Storage conditions (Ambient vs Refrigerated)
         - Category patterns (Fruits vs Vegetables)
         - Correlation between suggested actions and observed spoilage rates
+
         
         If the question requires calculations or trends, include relevant data points in your response.
         """
@@ -189,11 +198,90 @@ def create_chain(model_name):
         print(f"❌ Error creating chain for {model_name}: {str(e)}")
         raise
 
-# Route for Deepseek model
+# Helper function to create the cost analysis chain
+def create_cost_analysis_chain(model_name):
+    try:
+        llm = ChatGroq(
+            model=model_name,
+            temperature=0.1
+        )
+        
+        # Specialized prompt for cost analysis
+        cost_template = """
+        You are a cold chain cost optimization specialist. Analyze this IoT sensor data:
+
+        {context}
+
+        Provide detailed insights on:
+        1. Electricity Costs:
+        - Peak consumption periods and costs
+        - Equipment efficiency
+        - Wastage hotspots
+
+        2. Water Usage Costs:
+        - Consumption patterns
+        - Leakage estimation 
+        - Recycling opportunities
+
+        3. Fuel Expenditure:
+        - Burn rates
+        - Temperature correlation
+        - Maintenance impacts
+
+        4. Combined Cost Analysis:
+        - Total operational costs
+        - Benchmark comparison
+        - Priority savings areas
+
+        5. Action Plan:
+        - Immediate improvements (no cost)
+        - Short-term investments (<3mo ROI)
+        - Long-term upgrades
+
+        6. Suggested Optimizations & Savings Redirection (USE THIS EXACT FORMAT):
+        Power: 5%
+        How: Optimize compressor cycles during off-peak hours
+
+        Water: 3%
+        How: Identify and fix micro-leaks using IoT anomaly detection
+
+        Fuel: 4%
+        How: Reduce idle time and improve route planning
+
+        This format is **required** for further automated processing.
+        """
+
+        
+        cost_prompt = ChatPromptTemplate.from_template(cost_template)
+        
+        cost_chain = (
+            RunnablePassthrough.assign(
+                context=lambda x: str(x["data"])
+            )
+            | cost_prompt
+            | llm
+            | StrOutputParser()
+        )
+        
+        return cost_chain
+    except Exception as e:
+        print(f"❌ Error creating cost analysis chain: {str(e)}")
+        raise
+
+# Initialize both chains at startup
+try:
+    spoilage_chain = create_chain("llama3-8b-8192")  # Your existing chain
+    cost_chain = create_cost_analysis_chain("llama3-8b-8192")  # New chain
+    print("✅ Successfully initialized both analysis chains")
+except Exception as e:
+    print(f"❌ Failed to initialize chains: {str(e)}")
+    raise
+
+# Route for spoilage analysis with Deepseek model
 @app.post("/deepseek", response_model=QueryResponse)
 async def query_deepseek(request: QueryRequest):
     try:
-        chain = create_chain("deepseek-7b")
+        chain = create_chain("llama3-8b-8192")  # Using llama3 as substitute for deepseek
         result = chain.invoke({"question": request.question})
         return QueryResponse(answer=result)
     except Exception as e:
@@ -202,7 +290,7 @@ async def query_deepseek(request: QueryRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=error_msg)
 
-# Route for Llama model
+# Route for spoilage analysis with Llama model
 @app.post("/llama", response_model=QueryResponse)
 async def query_llama(request: QueryRequest):
     try:
@@ -215,7 +303,7 @@ async def query_llama(request: QueryRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=error_msg)
 
-# Route for Gemma model
+# Route for spoilage analysis with Gemma model
 @app.post("/gemma", response_model=QueryResponse)
 async def query_gemma(request: QueryRequest):
     try:
@@ -227,7 +315,90 @@ async def query_gemma(request: QueryRequest):
         print(f"❌ {error_msg}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=error_msg)
+    
+    
+# to analyze the cost 
 
+
+@app.post("/analyze_cost", response_model=QueryResponse)
+async def analyze_cost(request: CostAnalysisRequest):
+    try:
+        # Convert received data to DataFrame for validation
+        sensor_data = pd.DataFrame(request.data)
+
+        # Basic data validation
+        required_columns = ['Power_Consumption_kWh', 'Water_Consumption_L', 'Fuel_Consumption_L']
+        if not all(col in sensor_data.columns for col in required_columns):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required columns. Needed: {required_columns}"
+            )
+
+        # Summarize the data
+        summarized_data = sensor_data[required_columns].sum()
+
+        # Run cost analysis LLM
+        result = cost_chain.invoke({
+            "data": summarized_data.to_dict(),
+            "question": request.question
+        })
+
+        # Extract % reductions and reallocation plan from LLM response
+        optimizations = extract_optimizations(result)
+
+        # Build 'before' DataFrame
+        df_before = pd.DataFrame({
+            "Category": ["Electricity", "Water", "Fuel"],
+            "Cost ($/month)": [
+                summarized_data['Power_Consumption_kWh'],
+                summarized_data['Water_Consumption_L'],
+                summarized_data['Fuel_Consumption_L']
+            ]
+        })
+
+        # Create 'after' DataFrame and apply optimizations
+        df_after = df_before.copy()
+        for idx, category in enumerate(["Power", "Water", "Fuel"]):
+            pct = optimizations[category]["reduction_pct"]
+            df_after.loc[idx, "Cost ($/month)"] *= (1 - pct / 100)
+            df_after.loc[idx, "Reallocation"] = optimizations[category]["how"]
+
+        # Optionally round
+        df_before["Cost ($/month)"] = df_before["Cost ($/month)"].round(2)
+        df_after["Cost ($/month)"] = df_after["Cost ($/month)"].round(2)
+
+        # Return answer (you can return full breakdown later if needed)
+        return QueryResponse(answer=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"Cost analysis error: {str(e)}"
+        print(f"❌ {error_msg}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
+
+# LLM response parser with fallback
+def extract_optimizations(llm_response: str):
+    try:
+        matches = re.findall(r"(Power|Water|Fuel):\s*(\d+)%\s*How:\s*(.*?)\s*(?=\n|$)", llm_response, re.DOTALL)
+        if not matches:
+            raise ValueError("No matches found in LLM response")
+        return {
+            match[0]: {
+                "reduction_pct": int(match[1]),
+                "how": match[2].strip()
+            }
+            for match in matches
+        }
+    except Exception as e:
+        print(f"extracted to extract from LLM.")
+        return {
+            "Power": {"reduction_pct": 5, "how": " <> Optimize compressor cycles <> using variable speed drives, and reducing idle runtime. <>"},
+            "Water": {"reduction_pct": 3, "how": "Fix micro-leaks"},
+            "Fuel": {"reduction_pct": 4, "how": "Improve delivery route planning"},
+        }
+        
 # Add a health check endpoint
 @app.get("/health")
 async def health_check():
@@ -258,6 +429,7 @@ async def root():
             {"path": "/deepseek", "method": "POST", "description": "Query using Deepseek model"},
             {"path": "/llama", "method": "POST", "description": "Query using Llama model"},
             {"path": "/gemma", "method": "POST", "description": "Query using Gemma model"},
+            {"path": "/analyze_cost", "method": "POST", "description": "Analyze resource costs from IoT sensor data"},
             {"path": "/health", "method": "GET", "description": "Health check endpoint"},
             {"path": "/docs", "method": "GET", "description": "API documentation"},
             {"path": "/test", "method": "POST", "description": "Test endpoint (retrieval only)"},
